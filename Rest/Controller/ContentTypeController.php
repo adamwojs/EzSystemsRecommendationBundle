@@ -32,7 +32,7 @@ class ContentTypeController extends ContentController
      */
     public function getContentType($contentTypeIdList, Request $request)
     {
-        $contentTypeIds = explode(',', $contentTypeIdList);
+        $contentTypeIds = $this->getIdListFromString($contentTypeIdList);
 
         $content = $this->prepareContentByContentTypeIds($contentTypeIds, $request);
 
@@ -49,12 +49,19 @@ class ContentTypeController extends ContentController
      */
     protected function prepareContentByContentTypeIds($contentTypeIds, Request $request)
     {
-        $pageSize = (int)$request->get('page_size', self::PAGE_SIZE);
-        $page = $request->get('page', 1);
+        $options = $this->parseParameters($request, ['page_size', 'page', 'path', 'hidden', 'lang', 'sa', 'image']);
+
+        $pageSize = (int)$options->get('page_size', self::PAGE_SIZE);
+        $page = (int)$options->get('page', 1);
         $offset = $page * $pageSize - $pageSize;
-        $path = $request->get('path');
-        $hidden = $request->get('hidden');
-        $lang = $request->get('lang');
+        $path = $options->get('path');
+        $hidden = $options->get('hidden');
+        $lang = $options->get('lang');
+        $siteAccess = $options->get('sa', $this->siteAccess->name);
+
+        $rootLocationId = $this->configResolver->getParameter('content.tree_root.location_id', null, $siteAccess);
+        $rootLocationPathString = $this->locationService->loadLocation($rootLocationId)->pathString;
+
         $contentItems = array();
 
         foreach ($contentTypeIds as $contentTypeId) {
@@ -68,9 +75,7 @@ class ContentTypeController extends ContentController
                 $criteria[] = new Criterion\Visibility(Criterion\Visibility::VISIBLE);
             }
 
-            $siteAccess = $request->get('sa', $this->siteAccess->name);
-            $rootLocationId = $this->configResolver->getParameter('content.tree_root.location_id', null, $siteAccess);
-            $criteria[] = new Criterion\Subtree($this->locationService->loadLocation($rootLocationId)->pathString);
+            $criteria[] = new Criterion\Subtree($rootLocationPathString);
 
             $query = new Query();
             $query->query = new Criterion\LogicalAnd($criteria);
